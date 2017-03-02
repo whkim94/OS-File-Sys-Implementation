@@ -7,6 +7,27 @@
 #include "disk.h"
 #include "fs.h"
 
+struct superblock{
+	uint8_t signiture[8];
+	uint8_t numBloks[2];
+	uint8_t rootIndex[2];
+	uint8_t dataStart[2];
+	uint8_t numData[2];
+	uint8_t numFAT[1];
+	uint8_t padding[4079];
+} __attribute__((packed));
+
+struct fat {
+	uint16_t* fatArray;
+};
+
+struct rootDirectory {
+	uint8_t fileName[16];
+	uint8_t fileSize[4];
+	uint8_t fileIndex[2];
+	uint8_t padding[10];
+};
+
 int fs_mount(const char *diskname)
 {
 	/* TODO: PART 3 - Phase 1 */
