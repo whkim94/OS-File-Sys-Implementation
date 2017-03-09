@@ -156,17 +156,19 @@ int fs_create(const char *filename)
  * is too long, or if the root directory already contains %FS_FILE_MAX_COUNT
  * files. 0 otherwise.
  */
-	// Check if the 128th filename is already full. 
+	// Check if the 128th entry in rootDirectory is already full. 
 	if(*((myRootDirectory+127*32)->fileName) != 0)
 		return -1;
 
 	//check if @filename length exceeds %FS_FILENAME_LEN characters
-	if (sizeof(filename)>FS_FILENAME_LEN)
-		return -1
+	if (strlen(filename)>FS_FILENAME_LEN)
+		return -1;
 
+	
 	//check if @filename already exists in the system
-	for (int i=0;i<128;i++) {
-		if ( strcmp((char*)*((myRootDirectory+(i*32))->fileName), filename) == 0) { //found a match
+	int i = 0;
+	for (i=0;i<128;i++) {
+		if ( memcmp((myRootDirectory+(i*32)), filename, 16) == 0) { //found a match
 			return -1;
 		}
 	}
@@ -190,11 +192,12 @@ int fs_create(const char *filename)
 	while ( *(myRootDirectory+freeRD*32)->fileName != 0 ){
 		freeRD++;
 	}
-	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileName), filename);
-	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileSize), 0);
-	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileIndex), FATCount);
+	int* temp = &FATCount;
+	memcpy((myRootDirectory+(freeRD*32)), filename, 16);
+	memcpy((myRootDirectory+(freeRD*32)+16), 0, 4);
+	memcpy((myRootDirectory+(freeRD*32)+20), temp, 2);
 
-
+	return 0;
 }
 
 int fs_delete(const char *filename)
@@ -209,7 +212,47 @@ int fs_delete(const char *filename)
  * Return: -1 if there is no file named @filename to delete, or if file
  * @filename is currently open. 0 otherwise.
  */
+
+	//try to find the index of the filename in RD
+	int index = 0, i = 0;
+	for (i=0;i<128;i++) {
+		if ( memcmp((myRootDirectory+(i*32)), filename, 16) == 0) { //found a match
+			index = i;
+			break;
+		}
+	}
+
+	//check if there is no file named @filename
+	if (index == 0) {
+		return -1; 
+	}
+
+	//check if the disk is opened
+	int status = block_disk_open(filename);
+	if ( status == -1) {
+		return -1;
+	}
+	else if (status == 0) { //close it if we opened it
+		block_disk_close();
+	}
+
+	//update FAT
+	int* temp = 0;
+	memcpy( temp, myRootDirectory+(i*32)+20, 2);
+	int FATIndex = *temp;
+	while(myFAT->data[FATIndex] != 0xffff) {
+		int tempIndex = myFAT->data[FATIndex];
+		myFAT->data[FATIndex] = 0;
+		FATIndex = tempIndex;
+	}
+	myFAT->data[FATIndex] = 0;
+
+	//update RD
+	*((myRootDirectory+(index*32))->fileName) = 0;
+	return 0;
+
 }
+
 
 int fs_ls(void)
 {
