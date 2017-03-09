@@ -156,24 +156,43 @@ int fs_create(const char *filename)
  * is too long, or if the root directory already contains %FS_FILE_MAX_COUNT
  * files. 0 otherwise.
  */
+	// Check if the 128th filename is already full. 
+	if(*((myRootDirectory+127*32)->fileName) != 0)
+		return -1;
 
-	//if(myRootDirectory == FS_FILE_MAX_COUNT)
-		//return -1;
+	//check if @filename length exceeds %FS_FILENAME_LEN characters
+	if (sizeof(filename)>FS_FILENAME_LEN)
+		return -1
 
-	// struct node* newEle = (struct node*)malloc(sizeof(struct node));
-	// newEle->ndata = data;
-	// newEle->next = NULL;
-	// if (head == NULL)
-	// 	head = newEle;
-	// else
-	// 	tail->next = newEle;
-	// tail = newEle;
+	//check if @filename already exists in the system
+	for (int i=0;i<128;i++) {
+		if ( strcmp((char*)*((myRootDirectory+(i*32))->fileName), filename) == 0) { //found a match
+			return -1;
+		}
+	}
 
+	//update FAT
+	int FATCount = 1;
+	while (myFAT->data[FATCount] != 0) {
+		FATCount++;
+	}
 
-	// struct rootDirectory* thisfile = (struct rootDirectory*)malloc(sizeof(struct rootDirectory));
-	// thisfile->fileName = filemame;
-	// thisfile->fileSize = 0;
-	// thisfile->fileIndex = 69;
+	//special case where FAT is full
+	if (FATCount==1) {
+		printf("Error: FAT is currently full\n");
+		return -1;
+	}
+
+	myFAT->data[FATCount] = 0xffff;	
+
+	//update RD
+	int freeRD = 0;
+	while ( *(myRootDirectory+freeRD*32)->fileName != 0 ){
+		freeRD++;
+	}
+	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileName), filename);
+	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileSize), 0);
+	memcpy((char*)*((myRootDirectory+(freeRD*32))->fileIndex), FATCount);
 
 
 }
