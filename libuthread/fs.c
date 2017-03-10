@@ -52,6 +52,7 @@ int fs_mount(const char *diskname)
  * Return: -1 if virtual disk file @diskname cannot be opened, or if no valid
  * file system can be located. 0 otherwise.
  */
+	//check if we opened the disk correctly
 	if(block_disk_open(diskname) == -1){
 		printf("%s Diskname failed to open\n", diskname);
 		return -1;
@@ -60,22 +61,25 @@ int fs_mount(const char *diskname)
 	//reading superblock
 	mysuperblock = malloc(sizeof(struct superblock));
 	block_read(0,mysuperblock);
+
     //reading FAT
 	int FATSize = mysuperblock->numFAT;
-	myFAT = calloc(sizeof(struct FATEntry), FATSize);
+	myFAT = (struct FATEntry*)calloc(FATSize, sizeof(struct FATEntry));
 	for (int i=0;i<FATSize;i++) {
 		block_read(1+i,myFAT+(i*4096));	
 	}
+
 	//reading RootDirectory
-	myRootDirectory = calloc(sizeof(struct rootDirectory), 128);
+	myRootDirectory = (struct rootDirectory*)calloc(128, sizeof(struct rootDirectory));
 	int rootPos = 1+FATSize;
 	block_read(rootPos,myRootDirectory);
+	
 	//reading data
 	int dataSize = mysuperblock->numData;
-	myData = calloc(dataSize,4096);
+	myData = calloc(4096, dataSize);
 	int dataPos = rootPos + 1;
 	for (int i=0;i<dataSize;i++) {
-		block_read(dataPos+i,myData+(i*4096));
+		block_read(dataPos+i, myData+(i*4096));
 	}
 
 	return 0;
@@ -97,7 +101,6 @@ int fs_umount(void)
 	free(myFAT);
 	free(myRootDirectory);
 	free(myData);
-
 	block_disk_close();
 
 	return 0;
@@ -112,8 +115,6 @@ int fs_info(void)
  *
  * Return: -1 if no underlying virtual disk was opened. 0 otherwise.
  */
-
-
 	printf("FS Info:\n");
 	printf("total_blk_count=%d\n", mysuperblock->numBlocks);
 	printf("fat_blk_count=%d\n", mysuperblock->numFAT);
@@ -132,17 +133,17 @@ int fs_info(void)
 
 	int RDCount = 0, comp = 0;
 	//comp = strcmp( (char)*(myRootDirectory + count)->fileName, "\0");
-	printf("First entry in myRootDirectory is: %s\n", *(myRootDirectory+RDCount*32)->fileName);
+	//printf("First entry in myRootDirectory is: %s\n", *(myRootDirectory+RDCount*32)->fileName);
 	while ( *(myRootDirectory+RDCount*32)->fileName != 0 ) {
 		RDCount++;
 	}
 	printf("rdir_free_ratio=%d/%d\n", 128 - RDCount ,128);
-
 	return 0;
 }
 
 int fs_create(const char *filename)
 {
+	
 /**
  * fs_create - Create a new file
  * @filename: File name
@@ -156,31 +157,43 @@ int fs_create(const char *filename)
  * is too long, or if the root directory already contains %FS_FILE_MAX_COUNT
  * files. 0 otherwise.
  */
-	// Check if the 128th entry in rootDirectory is already full. 
-	if(*((myRootDirectory+127*32)->fileName) != 0)
+	
+	// Check if the 128th entry in rootDirectory is already full.
+	uint8_t *mask = calloc(1,16);
+	printf("check for full RD\n");
+	if ( memcpy(mask,((myRootDirectory+127)->fileName),16)==0 ) {
+	//if(((myRootDirectory+127)->fileName) != 0) {
+		printf("RD is full\n");
 		return -1;
+	}
 
 	//check if @filename length exceeds %FS_FILENAME_LEN characters
-	if (strlen(filename)>FS_FILENAME_LEN)
+	printf("check filename len\n");
+	if (strlen(filename)>FS_FILENAME_LEN) {
+		printf("filename has exceeded 16 characters\n");
 		return -1;
+	}
 
-	
 	//check if @filename already exists in the system
+	printf("check already exists\n");
 	int i = 0;
 	for (i=0;i<128;i++) {
-		if ( memcmp((myRootDirectory+(i*32)), filename, 16) == 0) { //found a match
+		if ( memcmp((myRootDirectory+i), filename, 16) == 0) { //found a match
+			printf("filename already exists\n");
 			return -1;
 		}
 	}
 
+	
 	//update FAT
+	printf("check FAT\n");
 	int FATCount = 1;
 	while (myFAT->data[FATCount] != 0) {
 		FATCount++;
 	}
 
 	//special case where FAT is full
-	if (FATCount==1) {
+	if (FATCount==127) {
 		printf("Error: FAT is currently full\n");
 		return -1;
 	}
@@ -188,14 +201,28 @@ int fs_create(const char *filename)
 	myFAT->data[FATCount] = 0xffff;	
 
 	//update RD
+	printf("check RD while loop\n");
 	int freeRD = 0;
-	while ( *(myRootDirectory+freeRD*32)->fileName != 0 ){
+	while ( memcmp(mask,((myRootDirectory+freeRD)->fileName),16) != 0 ){
 		freeRD++;
 	}
+	printf("after while loop RD\n");
 	int* temp = &FATCount;
-	memcpy((myRootDirectory+(freeRD*32)), filename, 16);
-	memcpy((myRootDirectory+(freeRD*32)+16), 0, 4);
-	memcpy((myRootDirectory+(freeRD*32)+20), temp, 2);
+
+	printf("Before reading fileName\n");
+	int size = sizeof(*filename)/sizeof(char);
+	memcpy(((myRootDirectory+(freeRD))->fileName), filename, size+1);
+	
+	printf("Before reading fileSize\n");
+	int* noSize;
+	*noSize = 0;
+	memcpy(((myRootDirectory+(freeRD))->fileSize), noSize, 1);
+
+	printf("Before reading fileIndex\n");
+	size = sizeof(*temp)/sizeof(char);
+	memcpy(((myRootDirectory+(freeRD))->fileIndex), temp, size);
+
+	printf("After everything\n");
 
 	return 0;
 }
@@ -252,7 +279,6 @@ int fs_delete(const char *filename)
 	return 0;
 
 }
-
 
 int fs_ls(void)
 {
