@@ -39,10 +39,37 @@ We made our own structs for superblock, FAT, root directory, and data. Each of t
 
 ### Phase 3: File descriptor operations
 
-- fs_open():
+We created FileDescriptor struct, which has the following variables:
+
+- opened: how many files are currently opened
+- fdCount: our own file descriptor that we will be assigning
+- fileD[32]: an array that records all file descriptors that are opened
+- fileName[32][16]: an array that records all the filenames that are currently open
+- SeekPos[32]: an array that records all seek positions of each opened file
+
+Given functions:
+
+- fs_open(): 
+ 1. we check if there are more opened file than FS_OPEN_MAX_COUNT, return -1 if true
+ 2. we loop through the root directory to see if filename exists, return -1 if it doesn't
+ 2. we loop through the array of file descriptors to find a free spot, and find the index
+ 3. we set the fileName[index] to filename, fileD[index] to fdCount(later incremented), SeekPos[index] to 0
+ 4. we increment opened so that we know we opened another file, and increment fdCount so that we give a new file descriptor next time we open another file
+ 5. we return the file descriptor of the opened file
+
 - fs_close():
+ 1. we loop through the array of file descriptors to find the index of the filename, return -1 if the file descriptor wasn't found
+ 2. we set fileD[index] to 0; SeekPos[index] to 0, and decrement opened so that we know one less file is opened
+ 
 - fs_stat():
+ 1. we loop through the array of opened file descriptors to find the index of the matching one, return -1 if none was found
+ 2. we get the name of the index of found descriptor(fileName[index])
+ 3. we loop through the root directory to find a matching filename, return -1 if 
+ 4. we return the fileSize of the found file
+ 
 - fs_lseek():
+ 1. we loop through the array of file descriptors to find the index of the filename, return -1 if the file descriptor wasn't found
+ 2. we set the SeekPos[index] to @offset
 
 ### Phase 4: File reading/writing
 
@@ -54,3 +81,4 @@ We made our own structs for superblock, FAT, root directory, and data. Each of t
 - http://stackoverflow.com/questions/238603/how-can-i-get-a-files-size-in-c
 - http://man7.org/linux/man-pages/man3/memcmp.3.html
 - http://www.cplusplus.com/reference/cstring/strlen/
+- http://stackoverflow.com/questions/2521927/initializing-a-global-struct-in-c
