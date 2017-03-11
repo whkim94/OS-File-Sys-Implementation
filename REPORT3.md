@@ -49,3 +49,8 @@ We made our own structs for superblock, FAT, root directory, and data. Each of t
 - fs_read():
 - fs_write():
 
+### Resources
+
+- http://stackoverflow.com/questions/238603/how-can-i-get-a-files-size-in-c
+- http://man7.org/linux/man-pages/man3/memcmp.3.html
+- http://www.cplusplus.com/reference/cstring/strlen/
