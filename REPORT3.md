@@ -47,6 +47,9 @@ We created FileDescriptor struct, which has the following variables:
 - fileName[32][16]: an array that records all the filenames that are currently open
 - SeekPos[32]: an array that records all seek positions of each opened file
 
+In addition, we modified fs_delete() so that it would return -1 if there are any open files.
+
+
 Given functions:
 
 - fs_open(): 
@@ -73,8 +76,19 @@ Given functions:
 
 ### Phase 4: File reading/writing
 
+We didn't get this far.
+
 - fs_read():
 - fs_write():
+
+### Testing
+
+- We used the given fs.x to help us test our functions.
+- We use fs.x to make a new file system, and then keep testing: test-fs.x info [diskname] until mount(), unmount(), info() are returning correct values.
+- After that, we type: test-fs.x add [diskname] [filename], and use fs.x ls [diskname], to check if our fs_create() is working
+- Next, we type: test-fs.x rm [diskname] [filename], and use fs.x ls [diskname], to check if our fs_delete() is working
+- for phase3, we use test-fs.x cat [diskname] [filename], while printing out the file descriptors to check if they are correct
+ - Note: Our file descriptor would reset every time we mount(), so we asked on piazza (https://piazza.com/class/iwmqg9yozbn4yp?cid=521), and got the responds that it was acceptable behavior.
 
 ### Resources
 
