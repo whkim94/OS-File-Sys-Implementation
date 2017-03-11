@@ -39,4 +39,13 @@ We made our own structs for superblock, FAT, root directory, and data. Each of t
 
 ### Phase 3: File descriptor operations
 
+- fs_open():
+- fs_close():
+- fs_stat():
+- fs_lseek():
+
 ### Phase 4: File reading/writing
+
+- fs_read():
+- fs_write():
+
