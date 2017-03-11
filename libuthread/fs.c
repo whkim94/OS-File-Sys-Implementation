@@ -33,11 +33,20 @@ struct FATEntry {
 	int16_t data[2048];
 } __attribute__((packed));
 
+struct fileDescriptor{
+	int opened; 
+	int fdCount; 
+	int fileD[32]; // its file descriptor
+	char fileName[32][16];
+	int SeekPos[32];
+};
+
 
 struct rootDirectory* myRootDirectory;
 struct superblock* mysuperblock;
 struct FATEntry* myFAT;
 void* myData;
+struct fileDescriptor* FD;
 
 
 
@@ -72,7 +81,7 @@ int fs_mount(const char *diskname)
 	}
 
 	//reading RootDirectory
-	myRootDirectory = (struct rootDirectory*)calloc(128, sizeof(struct rootDirectory));
+	myRootDirectory = (struct rootDirectory*)calloc(FS_FILE_MAX_COUNT, sizeof(struct rootDirectory));
 	int rootPos = 1+FATSize;
 	block_read(rootPos,myRootDirectory);
 	
@@ -83,6 +92,11 @@ int fs_mount(const char *diskname)
 	for (int i=0;i<dataSize;i++) {
 		block_read(dataPos+i, myData+(i*4096));
 	}
+
+
+	FD = calloc(1, sizeof(struct fileDescriptor));
+	FD->opened = 0;
+	FD->fdCount = 1;
 
 	//block_disk_close();
 	return 0;
@@ -99,6 +113,9 @@ int fs_umount(void)
  * Return: -1 if no underlying virtual disk was opened, or if the virtual disk
  * cannot be closed, or if there are still open file descriptors. 0 otherwise.
  */
+
+	if(FD->opened > 0)
+		return -1;
 
 	//reading superblock
 	block_write(0,mysuperblock);
@@ -160,7 +177,7 @@ int fs_info(void)
 	while ( ((myRootDirectory+127)->fileName) != 0 ) {
 		RDCount++;
 	}
-	printf("rdir_free_ratio=%d/%d\n", 128 - RDCount ,128);
+	printf("rdir_free_ratio=%d/%d\n", FS_FILE_MAX_COUNT - RDCount ,FS_FILE_MAX_COUNT);
 	return 0;
 }
 
@@ -199,7 +216,7 @@ int fs_create(const char *filename)
 	int tempi = strlen(filename);
 	printf("filename length is: %d\n",tempi);
 	int index = -1;
-	for (int i=0;i<128;i++) {
+	for (int i=0;i<FS_FILE_MAX_COUNT;i++) {
 		if ( memcmp((myRootDirectory+i), filename, tempi) == 0) { //found a match
 					printf("This is our file %s\n", (myRootDirectory+i)->fileName);
 
@@ -242,11 +259,13 @@ int fs_delete(const char *filename)
  * @filename is currently open. 0 otherwise.
  */
 
+	if(FD->opened > FS_OPEN_MAX_COUNT) return -1;
+
 	//try to find the index of the filename in RD
 	printf("filename passed in is: %s\n", filename);
 	int tempi = strlen(filename);
 	int index = -1;
-	for (int i=0;i<128;i++) {
+	for (int i=0;i<FS_FILE_MAX_COUNT;i++) {
 		printf("((myRootDirectory+i)->fileName) is: %s\n", ((myRootDirectory+i)->fileName));
 		if ( memcmp((myRootDirectory+i)->fileName, filename, tempi) == 0) { //found a match
 			index = i;
@@ -307,37 +326,195 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
-	/* TODO: PART 3 - Phase 3 */
-	return 0;
+	/**
+ * fs_open - Open a file
+ * @filename: File name
+ *
+ * Open file named @filename for reading and writing, and return the
+ * corresponding file descriptor. The file descriptor is a non-negative integer
+ * that is used subsequently to access the contents of the file. The file offset
+ * of the file descriptor is set to 0 initially (beginning of the file). If the
+ * same file is opened multiple files, fs_open() must return distinct file
+ * descriptors. A maximum of %FS_OPEN_MAX_COUNT files can be open
+ * simultaneously.
+ *
+ * Return: -1 if there is no file named @filename to open, or if there are
+ * already %FS_OPEN_MAX_COUNT files currently open. 
+ */
+	if(FD->opened > FS_OPEN_MAX_COUNT) return -1;
+	int index = -1;
+	int tempi = strlen(filename);
+	for (int i=0;i<128;i++) {
+		//printf("((myRootDirectory+i)->fileName) is: %s\n", ((myRootDirectory+i)->fileName));
+		if ( memcmp((myRootDirectory+i)->fileName, filename, tempi) == 0) { //found a match
+			index = i;
+			break;
+		}
+	}
+
+	//check if there is no file named @filename
+	if (index == -1) {
+		printf("No such file name\n");
+		return -1; 
+	}
+
+	int i = 0;
+	for(i;i < FS_OPEN_MAX_COUNT; i++){
+		if(FD->fileD[i] == 0){
+			FD->fileD[i] = FD->fdCount;
+			break;
+		}
+	}
+	
+	//FD->fileName[i] = filename;
+	FD->SeekPos[i] = 0;
+	memcpy(FD->fileName[i], filename, tempi);
+	printf("Filename is %s\n", FD->fileName[i]);
+	printf("File Descriptor %d\n", FD->fileD[i]);
+	FD->fdCount++;
+	FD->opened++;
+	return FD->fileD[i];
 }
 
 int fs_close(int fd)
 {
-	/* TODO: PART 3 - Phase 3 */
+	/**
+ * fs_close - Close a file
+ * @fd: File descriptor
+ *
+ * Close file descriptor @fd.
+ *
+ * Return: -1 if file descriptor @fd is invalid (out of bounds or not currently
+ * open). 0 otherwise.
+ */
+
+	int i = 0;
+	for(i; i < FS_OPEN_MAX_COUNT; i++){
+		if(FD->fileD[i] == fd)
+			break;
+	}
+
+	if(i == 31)
+		return -1;
+
+	FD->fileD[i] = 0;
+	FD->SeekPos[i] = 0;
+	FD->opened--;
+
 	return 0;
 }
 
 int fs_stat(int fd)
 {
-	/* TODO: PART 3 - Phase 3 */
-	return 0;
+	/**
+ * fs_stat - Get file status
+ * @fd: File descriptor
+ *
+ * Get the current size of the file pointed by file descriptor @fd.
+ *
+ * Return: -1 if file descriptor @fd is invalid (out of bounds or not currently
+ * open). Otherwise return the current size of file.
+ */
+	int i = 0;
+	for(i; i < FS_OPEN_MAX_COUNT; i++){
+		if(FD->fileD[i] == fd)
+			break;
+	}
+	
+	//FIXME: add case for unfound file descriptor
+	if(FD->fileD[i] != fd) return -1;
+	
+	char *name = FD->fileName[i];
+	int strLength = strlen(FD->fileName[i]);
+	int j = 0;
+
+	for (j;i<FS_FILE_MAX_COUNT;j++) {
+		if ( memcmp((myRootDirectory+j), name, strLength) == 0) { //found a match
+					int size = (myRootDirectory+j)->fileSize;
+
+			printf("filename already exists\n");
+			return size;
+		}
+	}
+
+
+	return -1;
 }
 
 int fs_lseek(int fd, size_t offset)
 {
-	/* TODO: PART 3 - Phase 3 */
+	/**
+ * fs_lseek - Set file offset
+ * @fd: File descriptor
+ * @offset: File offset
+ *
+ * Set the file offset (used for read and write operations) associated with file
+ * descriptor @fd to the argument @offset. To append to a file, one can call
+ * fs_lseek(fd, fs_stat(fd));
+ *
+ * Return: -1 if file descriptor @fd is invalid (out of bounds or not currently
+ * open), or if @offset is out of bounds (beyond the end of the file). 0
+ * otherwise.
+ */
+
+	int i = 0;
+	for(i; i < FS_OPEN_MAX_COUNT; i++){
+		if(FD->fileD[i] == fd)
+			break;
+	}
+
+	if(FD->fileD[i] == fd) ;
+	else return -1;
+	
+
+	FD->SeekPos[i] = offset;
+
 	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
 {
-	/* TODO: PART 3 - Phase 4 */
+	/**
+ * fs_read - Read from a file
+ * @fd: File descriptor
+ * @buf: Data buffer to be filled with data
+ * @count: Number of bytes of data to be read
+ *
+ * Attempt to read @count bytes of data from the file referenced by file
+ * descriptor @fd into buffer pointer by @buf. It is assumed that @buf is large
+ * enough to hold at least @count bytes.
+ *
+ * The number of bytes read can be smaller than @count if there are less than
+ * @count bytes until the end of the file (it can even be 0 if the file offset
+ * is at the end of the file). The file offset of the file descriptor is
+ * implicitly incremented by the number of bytes that were actually read.
+ *
+ * Return: -1 if file descriptor @fd is invalid (out of bounds or not currently
+ * open). Otherwise return the number of bytes actually read.
+ */
 	return 0;
 }
 
 int fs_write(int fd, void *buf, size_t count)
 {
-	/* TODO: PART 3 - Phase 4 */
+	/**
+ * fs_write - Write to a file
+ * @fd: File descriptor
+ * @buf: Data buffer to write in the file
+ * @count: Number of bytes of data to be written
+ *
+ * Attempt to write @count bytes of data from buffer pointer by @buf into the
+ * file referenced by file descriptor @fd. It is assumed that @buf holds at
+ * least @count bytes.
+ *
+ * When the function attempts to write past the end of the file, the file is
+ * automatically extended to hold the additional bytes. If the underlying disk
+ * runs out of space while performing a write operation, fs_write() should write
+ * as many bytes as possible. The number of written bytes can therefore be
+ * smaller than @count (it can even be 0 if there is no more space on disk).
+ *
+ * Return: -1 if file descriptor @fd is invalid (out of bounds or not currently
+ * open). Otherwise return the number of bytes actually written.
+ */
 	return 0;
 }
-
