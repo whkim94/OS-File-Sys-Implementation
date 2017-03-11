@@ -10,10 +10,10 @@
 
 #define _UTHREAD_PRIVATE
 #include "context.h"
-#include "palloc.h"
-#include "preempt.h"
+//#include "palloc.h"
+//#include "preempt.h"
 #include "queue.h"
-#include "tls.h"
+//#include "tls.h"
 #include "uthread.h"
 
 enum thread_state {
@@ -31,7 +31,7 @@ struct uthread_tcb {
     int state;
     uthread_ctx_t context;
     void* tstack;
-    void* threadtls;
+    //void* threadtls;
 };
 
 void schedule(void)
@@ -54,7 +54,7 @@ void uthread_yield(void)
 void uthread_exit(void)
 {
 	current_thread->state = ZOMBIE;
-	palloc_destroy();
+	//palloc_destroy();
 	schedule();
 }
 
@@ -118,15 +118,10 @@ void uthread_start(uthread_func_t start, void *arg)
 		printf("Error\n");
 		exit(1);
 	}
-	int status = palloc_create();
-	if(status == -1)
-		printf("We Fail\n");
-
-	printf("We Pass\n");
 	
 	while(1) {
 		if(queue_length(ready) == 0) {
-			palloc_destroy();
+			//palloc_destroy();
 			break;
 		}
 		uthread_yield();
@@ -135,5 +130,5 @@ void uthread_start(uthread_func_t start, void *arg)
 
 void uthread_mem_config(size_t npages)
 {
-	palloc_configure(npages);
+	//palloc_configure(npages);
 }
