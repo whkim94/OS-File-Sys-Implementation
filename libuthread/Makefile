@@ -3,9 +3,12 @@ CFLAGS := -Werror
 CFLAGS := -g
 
 targets := libuthread.a
-objs := queue.o context.o uthread.o semaphore.o preempt.o bitmap.o palloc.o tls.o
+objs := queue.o context.o uthread.o disk.o fs.o
 
 all: $(targets)
+
+deps := $(patsubst %.o,%.d,$(objs))
+-include $(deps)
 
 libuthread.a: $(objs)
 	@echo "AR $@"
