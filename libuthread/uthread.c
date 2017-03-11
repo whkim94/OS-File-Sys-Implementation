@@ -74,7 +74,7 @@ void *uthread_get_tls(void)
  *
  * Return: Pointer to current thread's TLS
  */
-	return current_thread->threadtls;
+	//return current_thread->threadtls;
 }
 
 void uthread_set_tls(void *tls)
@@ -83,7 +83,7 @@ void uthread_set_tls(void *tls)
 	/*
  	* uthread_set_tls - Set TLS pointer for currently running thread
  	*/
- 	current_thread->threadtls = tls;
+ 	//current_thread->threadtls = tls;
 }
 
 struct uthread_tcb *uthread_current(void)
